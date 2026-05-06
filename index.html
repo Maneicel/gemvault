@@ -635,8 +635,14 @@ async function doLogin() {
   const password = document.getElementById('login-password').value;
   const errEl = document.getElementById('login-error');
   errEl.style.display = 'none';
-  const { error } = await sb.auth.signInWithPassword({ email, password });
-  if (error) { errEl.textContent = '이메일 또는 비밀번호가 올바르지 않습니다.'; errEl.style.display = 'block'; }
+  console.log('로그인 시도:', email);
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  console.log('응답 data:', data);
+  console.log('응답 error:', error);
+  if (error) {
+    errEl.textContent = '이메일 또는 비밀번호가 올바르지 않습니다. (' + error.message + ')';
+    errEl.style.display = 'block';
+  }
 }
 
 async function doLogout() {
