@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GemVault — 내 보석 컬렉션</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #0e0d0b; --bg2: #161410; --bg3: #1e1b17; --surface: #252118;
+    --border: rgba(255,235,180,0.1); --border2: rgba(255,235,180,0.2);
+    --gold: #c9a84c; --gold2: #e8cc7a; --gold3: rgba(201,168,76,0.15);
+    --text: #f0e8d0; --muted: #8a7e68; --danger: #a04040;
+    --nav-bg: rgba(14,13,11,0.92); --select-bg: #1e1b17;
+  }
+  html.light {
+    --bg: #f5f1ea; --bg2: #fffef9; --bg3: #ede8df; --surface: #e8e2d8;
+    --border: rgba(160,130,80,0.15); --border2: rgba(160,130,80,0.3);
+    --gold: #9a6f20; --gold2: #7a5418; --gold3: rgba(154,111,32,0.1);
+    --text: #2a2218; --muted: #7a6e58; --danger: #9a3030;
+    --nav-bg: rgba(245,241,234,0.92); --select-bg: #ede8df;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { transition: background 0.3s; }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Mono', monospace; font-weight: 300; min-height: 100vh; transition: background 0.3s, color 0.3s; }
+
+  /* ── LOGIN PAGE ── */
+  .login-page {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 2rem;
+  }
+  .login-box {
+    width: 100%; max-width: 380px;
+    border: 0.5px solid var(--border2); background: var(--bg2); padding: 2.5rem;
+  }
+  .login-logo {
+    font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 300;
+    letter-spacing: 0.12em; color: var(--gold2); text-align: center; margin-bottom: 0.4rem;
+  }
+  .login-logo span { font-style: italic; color: var(--muted); }
+  .login-sub { font-size: 10px; color: var(--muted); text-align: center; letter-spacing: 0.1em; margin-bottom: 2rem; }
+  .login-error { font-size: 12px; color: #e06060; margin-bottom: 1rem; display: none; }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: var(--nav-bg); backdrop-filter: blur(12px);
+    border-bottom: 0.5px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 2rem; height: 56px;
+  }
+  .logo { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 300; letter-spacing: 0.12em; color: var(--gold2); text-decoration: none; }
+  .logo span { font-style: italic; color: var(--muted); }
+  .nav-right { display: flex; align-items: center; gap: 0.5rem; }
+  .nav-tabs { display: flex; gap: 0; }
+  .nav-tab { background: none; border: none; cursor: pointer; font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.1em; color: var(--muted); padding: 0 1.2rem; height: 56px; border-bottom: 2px solid transparent; transition: color 0.2s, border-color 0.2s; text-transform: uppercase; }
+  .nav-tab:hover { color: var(--text); }
+  .nav-tab.active { color: var(--gold2); border-bottom-color: var(--gold); }
+  .nav-user { font-size: 10px; color: var(--muted); letter-spacing: 0.06em; }
+  .nav-admin-badge { font-size: 9px; background: var(--gold3); border: 0.5px solid var(--gold); color: var(--gold2); padding: 2px 7px; letter-spacing: 0.08em; margin-left: 6px; }
+  .theme-toggle { background: none; border: 0.5px solid var(--border2); color: var(--muted); cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 15px; transition: border-color 0.2s, color 0.2s; flex-shrink: 0; }
+  .theme-toggle:hover { border-color: var(--gold); color: var(--gold2); }
+  .btn-logout { background: none; border: 0.5px solid var(--border2); color: var(--muted); cursor: pointer; font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.08em; padding: 5px 12px; transition: border-color 0.2s, color 0.2s; }
+  .btn-logout:hover { border-color: var(--danger); color: #e06060; }
+
+  /* ── MAIN ── */
+  main { padding-top: 56px; min-height: 100vh; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ── GALLERY ── */
+  .gallery-header { padding: 3rem 2.5rem 2rem; border-bottom: 0.5px solid var(--border); display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+  .page-title { font-family: 'Cormorant Garamond', serif; font-size: 36px; font-weight: 300; letter-spacing: 0.05em; color: var(--text); }
+  .page-subtitle { font-size: 11px; color: var(--muted); margin-top: 4px; letter-spacing: 0.08em; }
+  .btn-primary { background: var(--gold3); border: 0.5px solid var(--gold); color: var(--gold2); font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; padding: 10px 20px; cursor: pointer; transition: background 0.2s; }
+  .btn-primary:hover { background: rgba(201,168,76,0.25); }
+  .upload-zone { margin: 2rem 2.5rem; border: 1px dashed var(--border2); padding: 2.5rem; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; position: relative; }
+  .upload-zone:hover, .upload-zone.drag-over { border-color: var(--gold); background: var(--gold3); }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-zone-icon { font-size: 32px; margin-bottom: 0.75rem; color: var(--muted); }
+  .upload-zone-text { font-size: 13px; color: var(--muted); }
+  .upload-zone-text strong { color: var(--gold2); font-weight: 400; }
+  .gem-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1px; background: var(--border); margin: 0 2.5rem 3rem; }
+  .gem-card { background: var(--bg2); cursor: pointer; transition: background 0.15s; position: relative; overflow: hidden; }
+  .gem-card:hover { background: var(--surface); }
+  .gem-card:hover .gem-card-overlay { opacity: 1; }
+  .gem-img-wrap { aspect-ratio: 1; overflow: hidden; background: var(--bg3); }
+  .gem-img-wrap img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s; }
+  .gem-card:hover .gem-img-wrap img { transform: scale(1.04); }
+  .gem-no-img { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 40px; color: var(--muted); }
+  .gem-card-info { padding: 12px 14px 14px; }
+  .gem-card-name { font-family: 'Cormorant Garamond', serif; font-size: 17px; font-weight: 400; color: var(--text); margin-bottom: 3px; }
+  .gem-card-type { font-size: 10px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+  .gem-card-overlay { position: absolute; inset: 0; background: rgba(14,13,11,0.6); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; gap: 10px; }
+  .btn-sm { background: var(--bg); border: 0.5px solid var(--border2); color: var(--text); font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; padding: 7px 14px; cursor: pointer; transition: border-color 0.2s; }
+  .btn-sm:hover { border-color: var(--gold); color: var(--gold2); }
+  .btn-sm.danger:hover { border-color: var(--danger); color: #e06060; }
+  .empty-state { padding: 5rem 2.5rem; text-align: center; color: var(--muted); }
+  .empty-state-icon { font-size: 48px; margin-bottom: 1rem; }
+  .empty-state p { font-size: 13px; line-height: 1.8; }
+
+  /* ── WIKI ── */
+  .wiki-layout { display: grid; grid-template-columns: 260px 1fr; min-height: calc(100vh - 56px); }
+  .wiki-sidebar { border-right: 0.5px solid var(--border); padding: 2rem 0; position: sticky; top: 56px; height: calc(100vh - 56px); overflow-y: auto; }
+  .wiki-sidebar-header { padding: 0 1.5rem 1.2rem; border-bottom: 0.5px solid var(--border); margin-bottom: 0.5rem; }
+  .wiki-sidebar-title { font-size: 10px; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; }
+  .wiki-search { width: 100%; background: var(--bg3); border: 0.5px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace; font-size: 12px; padding: 8px 10px; margin-top: 10px; outline: none; transition: border-color 0.2s; }
+  .wiki-search:focus { border-color: var(--gold); }
+  .wiki-search::placeholder { color: var(--muted); }
+  .wiki-entry-item { padding: 10px 1.5rem; cursor: pointer; font-size: 13px; color: var(--muted); transition: color 0.15s, background 0.15s; display: flex; align-items: center; justify-content: space-between; border-left: 2px solid transparent; }
+  .wiki-entry-item:hover { color: var(--text); background: var(--surface); }
+  .wiki-entry-item.active { color: var(--gold2); border-left-color: var(--gold); background: var(--gold3); }
+  .wiki-entry-name { font-family: 'Cormorant Garamond', serif; font-size: 15px; }
+  .wiki-entry-cat { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 1px; }
+  .wiki-new-btn { margin: 1rem 1.5rem 0; display: block; width: calc(100% - 3rem); padding: 9px; text-align: center; background: var(--gold3); border: 0.5px solid var(--gold); color: var(--gold2); font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; transition: background 0.2s; }
+  .wiki-new-btn:hover { background: rgba(201,168,76,0.25); }
+  .wiki-color-filter { padding: 1rem 1.5rem 0.5rem; border-bottom: 0.5px solid var(--border); margin-bottom: 0.25rem; }
+  .wiki-color-filter-label { font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+  .color-swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+  .color-swatch { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: transform 0.15s, border-color 0.15s; }
+  .color-swatch:hover { transform: scale(1.2); }
+  .color-swatch.active { border-color: var(--text); transform: scale(1.15); }
+  .color-swatch[data-color="전체"] { background: linear-gradient(135deg, #e84545 25%, #f0a020 50%, #4caf50 75%, #3b7de8 100%); }
+  .wiki-color-count { font-size: 9px; color: var(--muted); margin-top: 6px; letter-spacing: 0.06em; }
+  .wiki-showcase { min-height: calc(100vh - 56px); display: flex; flex-direction: column; padding: 3rem 3rem 4rem; overflow-x: hidden; }
+  .showcase-heading { margin-bottom: 2rem; }
+  .showcase-title { font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 300; letter-spacing: 0.06em; color: var(--text); }
+  .showcase-sub { font-size: 11px; color: var(--muted); margin-top: 5px; letter-spacing: 0.08em; }
+  .hanger-row { position: relative; margin-bottom: 3.5rem; }
+  .hanger-rope { position: relative; height: 3px; background: var(--border2); }
+  .hanger-rope::before, .hanger-rope::after { content: ''; position: absolute; top: 50%; transform: translateY(-50%); width: 10px; height: 10px; border-radius: 50%; background: var(--muted); opacity: 0.5; }
+  .hanger-rope::before { left: -5px; }
+  .hanger-rope::after { right: -5px; }
+  .hanger-photos { display: flex; flex-wrap: wrap; gap: 0; padding-top: 0; align-items: flex-start; margin-top: -5px; }
+  .photo-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; position: relative; margin-right: 2rem; margin-top: 0; transition: transform 0.25s cubic-bezier(.34,1.56,.64,1); transform-origin: top center; }
+  .photo-item:hover { transform: rotate(2deg) scale(1.04); }
+  .photo-item:nth-child(even):hover { transform: rotate(-2deg) scale(1.04); }
+  .clothespin { width: 14px; height: 22px; position: relative; z-index: 2; margin-bottom: -2px; flex-shrink: 0; }
+  .clothespin::before, .clothespin::after { content: ''; position: absolute; bottom: 0; width: 6px; height: 18px; background: var(--surface); border: 1px solid var(--border2); border-radius: 1px 1px 3px 3px; }
+  .clothespin::before { left: 0; transform: rotate(-4deg); transform-origin: top center; }
+  .clothespin::after { right: 0; transform: rotate(4deg); transform-origin: top center; }
+  .photo-thread { width: 1px; height: 10px; background: var(--border2); flex-shrink: 0; }
+  .photo-frame { background: var(--bg2); border: 0.5px solid var(--border2); padding: 6px 6px 28px; box-shadow: 2px 3px 10px rgba(0,0,0,0.25); position: relative; width: 120px; transition: box-shadow 0.2s; }
+  .photo-item:hover .photo-frame { box-shadow: 4px 6px 18px rgba(0,0,0,0.38); }
+  .photo-frame img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+  .photo-frame-placeholder { width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 32px; background: var(--bg3); }
+  .photo-caption { position: absolute; bottom: 0; left: 0; right: 0; height: 28px; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
+  .photo-caption-text { font-family: 'Cormorant Garamond', serif; font-size: 12px; color: var(--muted); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; transition: color 0.2s; }
+  .photo-item:hover .photo-caption-text { color: var(--gold2); }
+  .hanger-empty { padding: 5rem 2rem; text-align: center; color: var(--muted); font-size: 13px; line-height: 2.2; }
+  .hanger-empty-icon { font-size: 36px; margin-bottom: 1rem; }
+  .showcase-actions { display: flex; gap: 10px; margin-top: 0.5rem; justify-content: flex-end; }
+  .wiki-content { padding: 3rem 3rem 4rem; max-width: 760px; }
+  .wiki-welcome { padding: 6rem 3rem; color: var(--muted); text-align: center; }
+  .wiki-welcome-icon { font-size: 48px; margin-bottom: 1.5rem; }
+  .wiki-welcome p { font-size: 13px; line-height: 1.9; }
+  .wiki-article-header { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 0.5px solid var(--border); }
+  .wiki-article-hero { width: 100%; max-height: 320px; object-fit: cover; margin-bottom: 1.5rem; display: block; border: 0.5px solid var(--border); }
+  .wiki-article-name { font-family: 'Cormorant Garamond', serif; font-size: 40px; font-weight: 300; color: var(--text); margin-bottom: 6px; }
+  .wiki-article-meta { font-size: 11px; color: var(--muted); display: flex; gap: 1.5rem; flex-wrap: wrap; }
+  .wiki-meta-badge { background: var(--surface); border: 0.5px solid var(--border); padding: 3px 10px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .wiki-article-actions { display: flex; gap: 8px; margin-top: 1rem; }
+  .wiki-section { margin-bottom: 2rem; }
+  .wiki-section-label { font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); margin-bottom: 8px; }
+  .wiki-section-content { font-size: 14px; line-height: 1.85; color: var(--text); }
+  .wiki-props { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1px; background: var(--border); margin-top: 1rem; }
+  .wiki-prop { background: var(--bg2); padding: 12px 14px; }
+  .wiki-prop-label { font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .wiki-prop-value { font-size: 14px; color: var(--text); font-family: 'Cormorant Garamond', serif; }
+
+  /* ── MODAL ── */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 200; display: none; align-items: center; justify-content: center; padding: 1rem; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--bg2); border: 0.5px solid var(--border2); width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; }
+  .modal-header { padding: 1.5rem 2rem; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .modal-title { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 300; }
+  .modal-close { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 20px; transition: color 0.2s; }
+  .modal-close:hover { color: var(--text); }
+  .modal-body { padding: 1.5rem 2rem 2rem; }
+  .modal-footer { padding: 1rem 2rem 1.5rem; border-top: 0.5px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; }
+  .form-group { margin-bottom: 1.2rem; }
+  .form-label { display: block; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .form-input, .form-select, .form-textarea { width: 100%; background: var(--bg3); border: 0.5px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px; padding: 10px 12px; outline: none; transition: border-color 0.2s; -webkit-appearance: none; }
+  .form-textarea { resize: vertical; min-height: 100px; line-height: 1.7; }
+  .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--gold); }
+  .form-input::placeholder, .form-textarea::placeholder { color: var(--muted); }
+  .form-select option { background: var(--select-bg); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .form-section-label { font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.8rem; margin-top: 0.2rem; padding-bottom: 6px; border-bottom: 0.5px solid var(--border); }
+  .img-upload-area { border: 1px dashed var(--border2); padding: 1.5rem; text-align: center; cursor: pointer; position: relative; transition: border-color 0.2s, background 0.2s; }
+  .img-upload-area:hover { border-color: var(--gold); background: var(--gold3); }
+  .img-upload-area input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .img-preview { width: 100%; max-height: 200px; object-fit: contain; margin-top: 1rem; display: none; }
+
+  /* 미디어 URL 입력 */
+  .media-url-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+  .media-url-row { display: flex; gap: 6px; align-items: center; }
+  .media-url-row input { flex: 1; }
+  .media-url-remove { background: none; border: 0.5px solid var(--border2); color: var(--muted); width: 28px; height: 36px; cursor: pointer; font-size: 14px; flex-shrink: 0; transition: border-color 0.2s; }
+  .media-url-remove:hover { border-color: var(--danger); color: #e06060; }
+  .media-url-add { background: none; border: 0.5px solid var(--border2); color: var(--muted); font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.08em; padding: 7px 14px; cursor: pointer; transition: border-color 0.2s; width: 100%; text-align: center; }
+  .media-url-add:hover { border-color: var(--gold); color: var(--gold2); }
+  .media-help { font-size: 10px; color: var(--muted); margin-top: 4px; line-height: 1.6; }
+
+  /* Gem detail */
+  .gem-detail-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.82); z-index: 200; display: none; overflow-y: auto; }
+  .gem-detail-overlay.open { display: block; }
+  .gem-detail-inner { max-width: 860px; margin: 3rem auto; background: var(--bg2); border: 0.5px solid var(--border2); min-height: 200px; }
+  .gem-detail-header { padding: 1.5rem 2rem; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  .gem-detail-title { font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 300; }
+  .gem-detail-body { padding: 2rem; display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+  .gem-detail-media { grid-column: 1 / -1; }
+  .gem-detail-media-scroll { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+  .gem-detail-media-scroll img, .gem-detail-media-scroll video, .gem-detail-media-scroll iframe { height: 220px; width: auto; max-width: 340px; object-fit: cover; border: 0.5px solid var(--border); flex-shrink: 0; }
+  .gem-detail-props { display: flex; flex-direction: column; gap: 0; }
+  .gem-detail-prop { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 0.5px solid var(--border); gap: 1rem; }
+  .gem-detail-prop:last-child { border-bottom: none; }
+  .gem-detail-prop-label { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); flex-shrink: 0; }
+  .gem-detail-prop-value { font-family: 'Cormorant Garamond', serif; font-size: 15px; color: var(--text); text-align: right; }
+  .gem-detail-section { margin-bottom: 1.5rem; }
+  .gem-detail-section-label { font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); margin-bottom: 6px; }
+  .gem-detail-section-text { font-size: 14px; line-height: 1.85; color: var(--text); }
+
+  /* 공통 */
+  .notif { position: fixed; bottom: 2rem; right: 2rem; background: var(--surface); border: 0.5px solid var(--gold); color: var(--gold2); padding: 12px 20px; font-size: 12px; letter-spacing: 0.05em; z-index: 300; opacity: 0; transform: translateY(10px); transition: opacity 0.3s, transform 0.3s; pointer-events: none; }
+  .notif.show { opacity: 1; transform: translateY(0); }
+  .loading { display: flex; align-items: center; justify-content: center; padding: 4rem; color: var(--muted); font-size: 12px; letter-spacing: 0.1em; }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); }
+</style>
+</head>
+<body>
+
+<!-- ── LOGIN PAGE ── -->
+<div id="login-page" class="login-page">
+  <div class="login-box">
+    <div class="login-logo">Gem<span>Vault</span></div>
+    <div class="login-sub">보석 컬렉션 · 위키</div>
+    <div class="login-error" id="login-error"></div>
+    <div class="form-group">
+      <label class="form-label">이메일</label>
+      <input class="form-input" id="login-email" type="email" placeholder="이메일 주소">
+    </div>
+    <div class="form-group">
+      <label class="form-label">비밀번호</label>
+      <input class="form-input" id="login-password" type="password" placeholder="비밀번호" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="btn-primary" style="width:100%;margin-top:0.5rem;" onclick="doLogin()">로그인</button>
+    <button class="btn-sm" style="width:100%;margin-top:8px;padding:10px;" onclick="enterWikiOnly()">로그인 없이 위키 보기</button>
+  </div>
+</div>
+
+<!-- ── APP ── -->
+<div id="app" style="display:none;">
+  <nav>
+    <a class="logo" href="#">Gem<span>Vault</span></a>
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="showPage('gallery', this)">Gallery</button>
+      <button class="nav-tab" onclick="showPage('wiki', this)">Wiki</button>
+    </div>
+    <div class="nav-right">
+      <span class="nav-user" id="nav-user-email"></span>
+      <span class="nav-admin-badge" id="nav-admin-badge" style="display:none;">ADMIN</span>
+      <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="테마 전환">☽</button>
+      <button class="btn-logout" onclick="doLogout()">로그아웃</button>
+    </div>
+  </nav>
+
+  <main>
+    <!-- GALLERY -->
+    <div id="page-gallery" class="page active">
+      <div class="gallery-header">
+        <div>
+          <div class="page-title">내 보석 컬렉션</div>
+          <div class="page-subtitle">나만의 보석 기록을 남겨보세요</div>
+        </div>
+        <button class="btn-primary" onclick="openAddGemModal()">+ 보석 추가</button>
+      </div>
+      <div class="gem-grid" id="gem-grid"></div>
+      <div class="empty-state" id="gallery-empty" style="display:none;">
+        <div class="empty-state-icon">◇</div>
+        <p>아직 보석이 없습니다.<br>위 버튼을 눌러 첫 번째 보석을 추가해보세요.</p>
+      </div>
+    </div>
+
+    <!-- WIKI -->
+    <div id="page-wiki" class="page">
+      <!-- 쇼케이스 -->
+      <div id="wiki-showcase">
+        <div class="wiki-layout">
+          <aside class="wiki-sidebar">
+            <div class="wiki-sidebar-header">
+              <div class="wiki-sidebar-title">보석 위키</div>
+              <input class="wiki-search" type="text" placeholder="검색..." id="wiki-search" oninput="applyFilters()">
+            </div>
+            <div class="wiki-color-filter">
+              <div class="wiki-color-filter-label">색상으로 보기</div>
+              <div class="color-swatches" id="color-swatches"></div>
+              <div class="wiki-color-count" id="color-count"></div>
+            </div>
+            <div id="wiki-list"></div>
+            <button class="wiki-new-btn" id="wiki-new-btn" style="display:none;" onclick="openWikiModal()">+ 새 항목 작성</button>
+          </aside>
+          <div class="wiki-showcase" id="wiki-showcase-area">
+            <div class="showcase-heading">
+              <div class="showcase-title">보석 갤러리</div>
+              <div class="showcase-sub">사진을 클릭하면 해당 보석의 위키로 이동합니다</div>
+            </div>
+            <div id="hanger-display"></div>
+            <div class="showcase-actions">
+              <button class="btn-primary" id="showcase-new-btn" style="display:none;" onclick="openWikiModal()">+ 새 항목 작성</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- 아티클 -->
+      <div id="wiki-article-view" style="display:none;">
+        <div class="wiki-layout">
+          <aside class="wiki-sidebar">
+            <div class="wiki-sidebar-header">
+              <div class="wiki-sidebar-title">보석 위키</div>
+              <input class="wiki-search" type="text" placeholder="검색..." id="wiki-search2" oninput="applyFilters2(this.value)">
+            </div>
+            <div class="wiki-color-filter">
+              <div class="wiki-color-filter-label">색상으로 보기</div>
+              <div class="color-swatches" id="color-swatches2"></div>
+              <div class="wiki-color-count" id="color-count2"></div>
+            </div>
+            <div id="wiki-list2"></div>
+            <button class="wiki-new-btn" id="wiki-new-btn2" style="display:none;" onclick="openWikiModal()">+ 새 항목 작성</button>
+          </aside>
+          <div class="wiki-content" id="wiki-content-area"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- GEM MODAL -->
+<div class="modal-overlay" id="gem-modal">
+  <div class="modal" style="max-width:680px;">
+    <div class="modal-header">
+      <div class="modal-title" id="gem-modal-title">보석 추가</div>
+      <button class="modal-close" onclick="closeModal('gem-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-section-label">기본 정보</div>
+      <div class="form-group">
+        <label class="form-label">이름 (종류) *</label>
+        <input class="form-input" id="gem-name" type="text" placeholder="예: 오레곤 선스톤">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">분류</label>
+          <select class="form-select" id="gem-category">
+            <option value="">선택...</option>
+            <option>천연석</option><option>합성석</option><option>유기물 보석</option><option>광물</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">화학식</label>
+          <input class="form-input" id="gem-formula" type="text" placeholder="예: SiO₂">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">경도 (모스)</label>
+          <input class="form-input" id="gem-hardness" type="text" placeholder="예: 6.5–7.2">
+        </div>
+        <div class="form-group">
+          <label class="form-label">굴절률</label>
+          <input class="form-input" id="gem-ri" type="text" placeholder="예: 1.537–1.547">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">원산지</label>
+          <input class="form-input" id="gem-origin" type="text" placeholder="예: 미국 오레곤">
+        </div>
+        <div class="form-group">
+          <label class="form-label">색상</label>
+          <input class="form-input" id="gem-color" type="text" placeholder="예: 오렌지, 핑크">
+        </div>
+      </div>
+      <div class="form-section-label" style="margin-top:1.4rem;">내 보석 정보</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">구매처</label>
+          <input class="form-input" id="gem-vendor" type="text" placeholder="예: GIA 공인 딜러">
+        </div>
+        <div class="form-group">
+          <label class="form-label">구매 가격</label>
+          <input class="form-input" id="gem-price" type="text" placeholder="예: ₩320,000">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">구매일</label>
+          <input class="form-input" id="gem-date" type="date">
+        </div>
+        <div class="form-group">
+          <label class="form-label">캐럿 / 중량</label>
+          <input class="form-input" id="gem-carat" type="text" placeholder="예: 1.23ct">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">개요</label>
+        <textarea class="form-textarea" id="gem-overview" placeholder="보석에 대한 전반적인 설명..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">특성 및 감별 포인트</label>
+        <textarea class="form-textarea" id="gem-properties" placeholder="광학적 특성, 감별법, 처리 여부 등..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">메모</label>
+        <textarea class="form-textarea" id="gem-note" placeholder="획득 경위, 보관 상태, 기타 메모..." style="min-height:70px;"></textarea>
+      </div>
+      <div class="form-section-label" style="margin-top:1.4rem;">사진 · 영상 URL</div>
+      <div class="media-url-list" id="gem-media-url-list"></div>
+      <button class="media-url-add" onclick="addMediaUrlRow()">+ URL 추가</button>
+      <div class="media-help">
+        📷 사진: Google Drive에서 "링크 있는 모든 사용자" 공유 후 링크 붙여넣기<br>
+        🎬 영상: YouTube "일부 공개" 업로드 후 URL 붙여넣기
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-sm" onclick="closeModal('gem-modal')">취소</button>
+      <button class="btn-primary" onclick="saveGem()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- WIKI MODAL -->
+<div class="modal-overlay" id="wiki-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="wiki-modal-title">위키 항목 작성</div>
+      <button class="modal-close" onclick="closeModal('wiki-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">보석명 *</label>
+        <input class="form-input" id="wiki-name" type="text" placeholder="예: 오레곤 선스톤">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">분류</label>
+          <select class="form-select" id="wiki-category">
+            <option value="">선택...</option>
+            <option>천연석</option><option>합성석</option><option>유기물 보석</option><option>광물</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">화학식</label>
+          <input class="form-input" id="wiki-formula" type="text" placeholder="예: SiO₂">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">경도 (모스)</label>
+          <input class="form-input" id="wiki-hardness" type="text" placeholder="예: 6.5–7.2">
+        </div>
+        <div class="form-group">
+          <label class="form-label">굴절률</label>
+          <input class="form-input" id="wiki-ri" type="text" placeholder="예: 1.537–1.547">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">주요 산지</label>
+          <input class="form-input" id="wiki-origin" type="text" placeholder="예: 미국, 에티오피아">
+        </div>
+        <div class="form-group">
+          <label class="form-label">색상</label>
+          <input class="form-input" id="wiki-color" type="text" placeholder="예: 오렌지, 핑크, 무색">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">개요</label>
+        <textarea class="form-textarea" id="wiki-overview" placeholder="보석에 대한 전반적인 설명..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">특성 및 감별 포인트</label>
+        <textarea class="form-textarea" id="wiki-properties" placeholder="광학적 특성, 감별법, 처리 여부 등..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">시장 가치 / 수집 메모</label>
+        <textarea class="form-textarea" id="wiki-market" placeholder="가격대, 희귀도, 수집 팁 등..." style="min-height:80px;"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">대표 사진 URL (Google Drive)</label>
+        <input class="form-input" id="wiki-image" type="text" placeholder="https://drive.google.com/...">
+        <div class="media-help" style="margin-top:4px;">Google Drive에서 "링크 있는 모든 사용자" 공유 후 링크 붙여넣기</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-sm" onclick="closeModal('wiki-modal')">취소</button>
+      <button class="btn-primary" onclick="saveWikiEntry()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- GEM DETAIL -->
+<div class="gem-detail-overlay" id="gem-detail-overlay" onclick="handleDetailOverlayClick(event)">
+  <div class="gem-detail-inner" id="gem-detail-inner"></div>
+</div>
+
+<div class="notif" id="notif"></div>
+
+<script>
+// ── SUPABASE ──
+const SUPABASE_URL = 'https://rcyucufodwcuudbkwldt.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjeXVjdWZvZHdjdXVkYmt3bGR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMTkyNzksImV4cCI6MjA5MzU5NTI3OX0.PD8bae64toMFjvMhHl63GVoJuY-_w4ngAo6_HoR5Whk';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ── STATE ──
+let currentUser = null;
+let isAdmin = false;
+let gems = [];
+let wikis = [];
+let editingGemId = null;
+let editingWikiId = null;
+let currentWikiId = null;
+let mediaUrls = []; // [{url, type}] type: 'image'|'youtube'|'video'
+
+// ── AUTH ──
+async function enterWikiOnly() {
+  document.getElementById('login-page').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  const galleryTab = document.querySelector('.nav-tab');
+  galleryTab.style.opacity = '0.3';
+  galleryTab.style.pointerEvents = 'none';
+  document.querySelector('.btn-logout').textContent = '로그인';
+  document.querySelector('.btn-logout').onclick = () => {
+    document.getElementById('login-page').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+    document.querySelector('.btn-logout').textContent = '로그아웃';
+    document.querySelector('.btn-logout').onclick = doLogout;
+  };
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-wiki').classList.add('active');
+  document.querySelectorAll('.nav-tab')[1].classList.add('active');
+  initTheme();
+  await loadWikis();
+  goToShowcase();
+}
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) { errEl.textContent = '이메일 또는 비밀번호가 올바르지 않습니다.'; errEl.style.display = 'block'; }
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
+}
+
+sb.auth.onAuthStateChange(async (event, session) => {
+  if (session?.user) {
+    currentUser = session.user;
+    const { data: profile } = await sb.from('profiles').select('is_admin').eq('id', currentUser.id).single();
+    isAdmin = profile?.is_admin || false;
+    document.getElementById('login-page').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    document.getElementById('nav-user-email').textContent = currentUser.email;
+    if (isAdmin) document.getElementById('nav-admin-badge').style.display = 'inline';
+    // 갤러리 탭 복구
+    const galleryTab = document.querySelector('.nav-tab');
+    galleryTab.style.opacity = '';
+    galleryTab.style.pointerEvents = '';
+    // 로그아웃 버튼 복구
+    const logoutBtn = document.querySelector('.btn-logout');
+    logoutBtn.textContent = '로그아웃';
+    logoutBtn.onclick = doLogout;
+    // 어드민만 위키 새 항목 버튼 표시
+    ['wiki-new-btn','wiki-new-btn2','showcase-new-btn'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = isAdmin ? '' : 'none';
+    });
+    initTheme();
+    await loadGems();
+    await loadWikis();
+    // 갤러리 탭으로 이동
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-gallery').classList.add('active');
+    document.querySelectorAll('.nav-tab')[0].classList.add('active');
+    goToShowcase();
+  } else {
+    currentUser = null; isAdmin = false;
+    // 비로그인: 위키만 보여주고 갤러리 탭 숨김
+    document.getElementById('login-page').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    document.getElementById('nav-user-email').textContent = '';
+    document.getElementById('nav-admin-badge').style.display = 'none';
+    // 갤러리 탭 비활성화
+    const galleryTab = document.querySelector('.nav-tab');
+    galleryTab.style.opacity = '0.3';
+    galleryTab.style.pointerEvents = 'none';
+    // 로그인 버튼으로 전환
+    document.querySelector('.btn-logout').textContent = '로그인';
+    document.querySelector('.btn-logout').onclick = () => {
+      document.getElementById('login-page').style.display = 'flex';
+      document.getElementById('app').style.display = 'none';
+    };
+    ['wiki-new-btn','wiki-new-btn2','showcase-new-btn'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+    initTheme();
+    // 위키 탭으로 시작
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-wiki').classList.add('active');
+    document.querySelectorAll('.nav-tab')[1].classList.add('active');
+    await loadWikis();
+    goToShowcase();
+  }
+});
+
+// ── NAV ──
+function showPage(name, tab) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  if (tab) tab.classList.add('active');
+  if (name === 'gallery') renderGallery();
+  if (name === 'wiki') goToShowcase();
+}
+
+// ── GALLERY ──
+async function loadGems() {
+  const { data } = await sb.from('gems').select('*').order('created_at', { ascending: false });
+  gems = data || [];
+  renderGallery();
+}
+
+function driveUrlToImage(url) {
+  if (!url) return null;
+  // Google Drive 공유 링크 → 직접 표시 가능한 URL로 변환
+  const m = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w400`;
+  return url;
+}
+
+function youtubeEmbedUrl(url) {
+  if (!url) return null;
+  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/))([a-zA-Z0-9_-]+)/);
+  if (m) return `https://www.youtube.com/embed/${m[1]}`;
+  return null;
+}
+
+function detectMediaType(url) {
+  if (!url) return 'image';
+  if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
+  if (url.includes('drive.google.com')) return 'drive';
+  return 'image';
+}
+
+function renderGallery() {
+  const grid = document.getElementById('gem-grid');
+  const empty = document.getElementById('gallery-empty');
+  grid.innerHTML = '';
+  if (!gems.length) { empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  gems.forEach(g => {
+    const media = g.media || [];
+    const firstMedia = media[0];
+    let thumbHtml = `<div class="gem-no-img">◈</div>`;
+    if (firstMedia) {
+      const type = detectMediaType(firstMedia.url);
+      if (type === 'drive') {
+        const src = driveUrlToImage(firstMedia.url);
+        thumbHtml = `<img src="${src}" alt="${g.name}" onerror="this.parentElement.innerHTML='<div class=gem-no-img>◈</div>'">`;
+      } else if (type === 'youtube') {
+        const vid = firstMedia.url.match(/(?:youtu\.be\/|watch\?v=|shorts\/)([a-zA-Z0-9_-]+)/)?.[1];
+        if (vid) thumbHtml = `<img src="https://img.youtube.com/vi/${vid}/mqdefault.jpg" alt="${g.name}">`;
+      } else {
+        thumbHtml = `<img src="${firstMedia.url}" alt="${g.name}" onerror="this.parentElement.innerHTML='<div class=gem-no-img>◈</div>'">`;
+      }
+    }
+    const card = document.createElement('div');
+    card.className = 'gem-card';
+    card.onclick = () => openGemDetail(g.id);
+    card.innerHTML = `
+      <div class="gem-img-wrap">${thumbHtml}</div>
+      <div class="gem-card-info">
+        <div class="gem-card-name">${g.name}</div>
+        <div class="gem-card-type">${[g.category, g.origin].filter(Boolean).join(' · ')}</div>
+      </div>
+      <div class="gem-card-overlay">
+        <button class="btn-sm" onclick="editGem('${g.id}');event.stopPropagation()">편집</button>
+        <button class="btn-sm danger" onclick="deleteGem('${g.id}');event.stopPropagation()">삭제</button>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+// ── GEM MODAL ──
+function openAddGemModal() {
+  editingGemId = null; mediaUrls = [];
+  document.getElementById('gem-modal-title').textContent = '보석 추가';
+  ['gem-name','gem-formula','gem-hardness','gem-ri','gem-origin','gem-color','gem-vendor','gem-price','gem-carat','gem-overview','gem-properties','gem-note'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('gem-category').value = '';
+  document.getElementById('gem-date').value = '';
+  renderMediaUrlList();
+  openModal('gem-modal');
+}
+
+function editGem(id) {
+  const g = gems.find(x => x.id === id); if (!g) return;
+  editingGemId = id;
+  mediaUrls = g.media ? [...g.media] : [];
+  document.getElementById('gem-modal-title').textContent = '보석 편집';
+  ['name','category','formula','hardness','ri','origin','color','vendor','price','carat','overview','properties','note'].forEach(k => {
+    const el = document.getElementById('gem-' + k); if (el) el.value = g[k === 'purchase_date' ? 'purchase_date' : k] || '';
+  });
+  document.getElementById('gem-date').value = g.purchase_date || '';
+  renderMediaUrlList();
+  openModal('gem-modal');
+}
+
+function addMediaUrlRow(url = '') {
+  mediaUrls.push({ url });
+  renderMediaUrlList();
+}
+
+function removeMediaUrl(idx) {
+  mediaUrls.splice(idx, 1);
+  renderMediaUrlList();
+}
+
+function renderMediaUrlList() {
+  const list = document.getElementById('gem-media-url-list');
+  list.innerHTML = mediaUrls.map((m, i) => `
+    <div class="media-url-row">
+      <input class="form-input" type="text" value="${m.url || ''}" placeholder="Google Drive 또는 YouTube URL" oninput="mediaUrls[${i}].url = this.value">
+      <button class="media-url-remove" onclick="removeMediaUrl(${i})">✕</button>
+    </div>`).join('');
+}
+
+async function saveGem() {
+  const name = document.getElementById('gem-name').value.trim();
+  if (!name) { alert('이름을 입력하세요.'); return; }
+  const data = {
+    user_id: currentUser.id,
+    name,
+    category: document.getElementById('gem-category').value,
+    formula: document.getElementById('gem-formula').value.trim(),
+    hardness: document.getElementById('gem-hardness').value.trim(),
+    ri: document.getElementById('gem-ri').value.trim(),
+    origin: document.getElementById('gem-origin').value.trim(),
+    color: document.getElementById('gem-color').value.trim(),
+    vendor: document.getElementById('gem-vendor').value.trim(),
+    price: document.getElementById('gem-price').value.trim(),
+    purchase_date: document.getElementById('gem-date').value,
+    carat: document.getElementById('gem-carat').value.trim(),
+    overview: document.getElementById('gem-overview').value.trim(),
+    properties: document.getElementById('gem-properties').value.trim(),
+    note: document.getElementById('gem-note').value.trim(),
+    media: mediaUrls.filter(m => m.url.trim()),
+  };
+  if (editingGemId) {
+    const { error } = await sb.from('gems').update(data).eq('id', editingGemId);
+    if (error) { notify('오류가 발생했습니다'); return; }
+  } else {
+    const { error } = await sb.from('gems').insert(data);
+    if (error) { notify('오류가 발생했습니다'); return; }
+  }
+  closeModal('gem-modal');
+  notify(editingGemId ? '수정되었습니다' : '추가되었습니다');
+  await loadGems();
+}
+
+async function deleteGem(id) {
+  if (!confirm('삭제할까요?')) return;
+  await sb.from('gems').delete().eq('id', id);
+  notify('삭제되었습니다');
+  await loadGems();
+}
+
+// ── GEM DETAIL ──
+function openGemDetail(id) {
+  const g = gems.find(x => x.id === id); if (!g) return;
+  const media = g.media || [];
+  const props = [
+    { label: '분류', value: g.category }, { label: '화학식', value: g.formula },
+    { label: '경도 (모스)', value: g.hardness }, { label: '굴절률', value: g.ri },
+    { label: '원산지', value: g.origin }, { label: '색상', value: g.color },
+    { label: '캐럿 / 중량', value: g.carat }, { label: '구매처', value: g.vendor },
+    { label: '구매 가격', value: g.price }, { label: '구매일', value: g.purchase_date },
+  ].filter(p => p.value);
+
+  const mediaHtml = media.map(m => {
+    const type = detectMediaType(m.url);
+    if (type === 'youtube') {
+      const embed = youtubeEmbedUrl(m.url);
+      return embed ? `<iframe src="${embed}" frameborder="0" allowfullscreen style="height:220px;width:340px;flex-shrink:0;border:0.5px solid var(--border);"></iframe>` : '';
+    } else if (type === 'drive') {
+      return `<img src="${driveUrlToImage(m.url)}" alt="${g.name}" style="height:220px;width:auto;object-fit:cover;border:0.5px solid var(--border);">`;
+    } else {
+      return `<img src="${m.url}" alt="${g.name}" style="height:220px;width:auto;object-fit:cover;border:0.5px solid var(--border);">`;
+    }
+  }).join('');
+
+  document.getElementById('gem-detail-inner').innerHTML = `
+    <div class="gem-detail-header">
+      <div class="gem-detail-title">${g.name}</div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-sm" onclick="editGem('${g.id}');closeGemDetail()">편집</button>
+        <button class="btn-sm danger" onclick="deleteGem('${g.id}');closeGemDetail()">삭제</button>
+        <button class="btn-sm" onclick="closeGemDetail()">✕ 닫기</button>
+      </div>
+    </div>
+    <div class="gem-detail-body">
+      ${mediaHtml ? `<div class="gem-detail-media"><div class="gem-detail-section-label">사진 · 영상</div><div class="gem-detail-media-scroll">${mediaHtml}</div></div>` : ''}
+      ${props.length ? `<div><div class="gem-detail-section-label">스펙 · 구매 정보</div><div class="gem-detail-props">${props.map(p=>`<div class="gem-detail-prop"><span class="gem-detail-prop-label">${p.label}</span><span class="gem-detail-prop-value">${p.value}</span></div>`).join('')}</div></div>` : '<div></div>'}
+      <div>
+        ${g.overview ? `<div class="gem-detail-section"><div class="gem-detail-section-label">개요</div><div class="gem-detail-section-text">${g.overview.replace(/\n/g,'<br>')}</div></div>` : ''}
+        ${g.properties ? `<div class="gem-detail-section"><div class="gem-detail-section-label">특성 및 감별</div><div class="gem-detail-section-text">${g.properties.replace(/\n/g,'<br>')}</div></div>` : ''}
+        ${g.note ? `<div class="gem-detail-section"><div class="gem-detail-section-label">메모</div><div class="gem-detail-section-text">${g.note.replace(/\n/g,'<br>')}</div></div>` : ''}
+      </div>
+    </div>`;
+  document.getElementById('gem-detail-overlay').classList.add('open');
+}
+function closeGemDetail() { document.getElementById('gem-detail-overlay').classList.remove('open'); }
+function handleDetailOverlayClick(e) { if (e.target === document.getElementById('gem-detail-overlay')) closeGemDetail(); }
+
+// ── WIKI ──
+const COLOR_TAGS = [
+  { key: '빨강', hex: '#c0392b', keywords: ['빨', '레드', 'red', '루비', '가넷', '스피넬', '홍', '진홍', '산호', '코럴'] },
+  { key: '주황', hex: '#e07020', keywords: ['주황', '오렌지', 'orange', '선스톤', '스페사르틴', '파이어'] },
+  { key: '노랑', hex: '#c8a800', keywords: ['노랑', '노란', '옐로', 'yellow', '시트린', '토파즈', '황', '황옥'] },
+  { key: '초록', hex: '#27ae60', keywords: ['초록', '그린', 'green', '에메랄드', '차보', '페리도트', '제이드', '비취'] },
+  { key: '파랑', hex: '#2563cc', keywords: ['파랑', '블루', 'blue', '사파이어', '아쿠아', '탄자나이트', '아이올라이트'] },
+  { key: '보라', hex: '#7c3aed', keywords: ['보라', '퍼플', 'purple', '바이올렛', 'violet', '아메시스트'] },
+  { key: '분홍', hex: '#d63384', keywords: ['분홍', '핑크', 'pink', '로즈', '모르가나이트', '쿤자이트'] },
+  { key: '무색', hex: '#b0a898', keywords: ['무색', '화이트', '투명', 'white', '다이아몬드'] },
+  { key: '검정', hex: '#3c3a38', keywords: ['검정', '블랙', 'black', '흑', '모리온'] },
+  { key: '기타', hex: '#8a7e68', keywords: [] },
+];
+const GEM_ICONS = { '빨강':'🔴','주황':'🟠','노랑':'🟡','초록':'🟢','파랑':'🔵','보라':'🟣','분홍':'🩷','무색':'🤍','검정':'🖤','기타':'💎' };
+
+function detectColorTags(colorStr) {
+  if (!colorStr) return [];
+  const lower = colorStr.toLowerCase();
+  const matched = COLOR_TAGS.filter(c => c.key !== '기타' && c.keywords.some(k => lower.includes(k)));
+  return matched.length ? matched.map(c => c.key) : ['기타'];
+}
+
+let activeColorFilter = null;
+
+async function loadWikis() {
+  const { data } = await sb.from('wikis').select('*').order('name');
+  wikis = data || [];
+  renderColorSwatches();
+  applyFilters();
+  renderHanger();
+}
+
+function renderHanger() {
+  const wrap = document.getElementById('hanger-display');
+  if (!wrap) return;
+  if (!wikis.length) {
+    wrap.innerHTML = `<div class="hanger-empty"><div class="hanger-empty-icon">◇</div>아직 위키 항목이 없습니다.<br>${isAdmin ? '새 항목을 작성하면 여기에 사진이 걸립니다.' : '어드민이 항목을 추가하면 여기에 표시됩니다.'}</div>`;
+    return;
+  }
+  const rowSize = 5;
+  const rows = [];
+  for (let i = 0; i < wikis.length; i += rowSize) rows.push(wikis.slice(i, i + rowSize));
+  wrap.innerHTML = rows.map(row => {
+    const photos = row.map(w => {
+      const tags = detectColorTags(w.color);
+      const primaryTag = tags[0] || '기타';
+      const icon = GEM_ICONS[primaryTag] || '💎';
+      const seed = w.name.charCodeAt(0) % 9;
+      const tilt = [-4,-3,-2,-1,0,1,2,3,4][seed];
+      let imgHtml;
+      if (w.image) {
+        const src = driveUrlToImage(w.image);
+        imgHtml = `<img src="${src}" alt="${w.name}" onerror="this.parentElement.innerHTML='<div class=photo-frame-placeholder>${icon}</div>'">`;
+      } else {
+        imgHtml = `<div class="photo-frame-placeholder">${icon}</div>`;
+      }
+      return `<div class="photo-item" onclick="showWikiEntry('${w.id}')" style="transform:rotate(${tilt}deg);transform-origin:top center;">
+        <div class="clothespin"></div>
+        <div class="photo-thread"></div>
+        <div class="photo-frame">${imgHtml}<div class="photo-caption"><div class="photo-caption-text">${w.name}</div></div></div>
+      </div>`;
+    }).join('');
+    return `<div class="hanger-row"><div class="hanger-rope"></div><div class="hanger-photos">${photos}</div></div>`;
+  }).join('');
+}
+
+function buildSwatches(wrapId, countId, onClickFn) {
+  const wrap = document.getElementById(wrapId);
+  const countEl = document.getElementById(countId);
+  if (!wrap || !countEl) return;
+  wrap.innerHTML = '';
+  const allBtn = document.createElement('div');
+  allBtn.className = 'color-swatch' + (activeColorFilter === null ? ' active' : '');
+  allBtn.setAttribute('data-color', '전체');
+  allBtn.title = '전체 보기';
+  allBtn.onclick = () => onClickFn(null);
+  wrap.appendChild(allBtn);
+  COLOR_TAGS.forEach(c => {
+    const count = wikis.filter(w => detectColorTags(w.color).includes(c.key)).length;
+    if (!count) return;
+    const btn = document.createElement('div');
+    btn.className = 'color-swatch' + (activeColorFilter === c.key ? ' active' : '');
+    btn.style.background = c.hex;
+    btn.title = `${c.key} (${count})`;
+    btn.onclick = () => onClickFn(activeColorFilter === c.key ? null : c.key);
+    wrap.appendChild(btn);
+  });
+  countEl.textContent = activeColorFilter
+    ? `${activeColorFilter} 계열 · ${wikis.filter(w => detectColorTags(w.color).includes(activeColorFilter)).length}종`
+    : `전체 · ${wikis.length}종`;
+}
+
+function renderColorSwatches() {
+  buildSwatches('color-swatches', 'color-count', k => { activeColorFilter = k; renderColorSwatches(); applyFilters(); });
+  buildSwatches('color-swatches2', 'color-count2', k => { activeColorFilter = k; renderColorSwatches(); applyFilters2(); });
+}
+
+function getFiltered(searchVal) {
+  const s = (searchVal || '').toLowerCase();
+  return wikis.filter(w => w.name.toLowerCase().includes(s) && (!activeColorFilter || detectColorTags(w.color).includes(activeColorFilter)));
+}
+
+function applyFilters() {
+  const s = document.getElementById('wiki-search')?.value || '';
+  renderWikiList(getFiltered(s), 'wiki-list');
+}
+
+function applyFilters2(v) {
+  const s = v !== undefined ? v : (document.getElementById('wiki-search2')?.value || '');
+  renderWikiList(getFiltered(s), 'wiki-list2');
+}
+
+function renderWikiList(list, targetId) {
+  const el = document.getElementById(targetId); if (!el) return;
+  el.innerHTML = '';
+  if (!list.length) { el.innerHTML = `<div style="padding:1rem 1.5rem;font-size:12px;color:var(--muted);">항목 없음</div>`; return; }
+  list.forEach(w => {
+    const dots = detectColorTags(w.color).map(tag => {
+      const c = COLOR_TAGS.find(x => x.key === tag);
+      return c ? `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${c.hex};margin-right:3px;vertical-align:middle;"></span>` : '';
+    }).join('');
+    const item = document.createElement('div');
+    item.className = 'wiki-entry-item' + (currentWikiId === w.id ? ' active' : '');
+    item.onclick = () => showWikiEntry(w.id);
+    item.innerHTML = `<div><div class="wiki-entry-name">${w.name}</div><div class="wiki-entry-cat">${dots}${w.category || '—'}</div></div>`;
+    el.appendChild(item);
+  });
+}
+
+function goToShowcase() {
+  currentWikiId = null;
+  document.getElementById('wiki-showcase').style.display = '';
+  document.getElementById('wiki-article-view').style.display = 'none';
+  renderColorSwatches(); applyFilters(); renderHanger();
+}
+
+function showWikiEntry(id) {
+  currentWikiId = id;
+  const w = wikis.find(x => x.id === id); if (!w) return;
+  document.getElementById('wiki-showcase').style.display = 'none';
+  document.getElementById('wiki-article-view').style.display = '';
+  renderColorSwatches(); applyFilters2();
+  const area = document.getElementById('wiki-content-area');
+  const props = [
+    { label: '화학식', value: w.formula }, { label: '경도 (모스)', value: w.hardness },
+    { label: '굴절률', value: w.ri }, { label: '주요 산지', value: w.origin },
+    { label: '색상', value: w.color }, { label: '분류', value: w.category },
+  ].filter(p => p.value);
+  const colorDots = detectColorTags(w.color).map(tag => {
+    const c = COLOR_TAGS.find(x => x.key === tag);
+    return c ? `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${c.hex};margin-right:5px;vertical-align:middle;" title="${c.key}"></span>` : '';
+  }).join('');
+  const editBtns = isAdmin ? `<button class="btn-sm" onclick="editWikiEntry('${w.id}')">편집</button><button class="btn-sm danger" onclick="deleteWikiEntry('${w.id}')">삭제</button>` : '';
+  area.innerHTML = `
+    <div style="margin-bottom:1rem;"><button class="btn-sm" onclick="goToShowcase()">← 장식장으로</button></div>
+    ${w.image ? `<img class="wiki-article-hero" src="${driveUrlToImage(w.image)}" alt="${w.name}" onerror="this.style.display='none'">` : ''}
+    <div class="wiki-article-header">
+      <div class="wiki-article-name">${w.name}</div>
+      <div class="wiki-article-meta">${colorDots}${w.category ? `<span class="wiki-meta-badge">${w.category}</span>` : ''}${w.color ? `<span class="wiki-meta-badge">${w.color}</span>` : ''}</div>
+      <div class="wiki-article-actions">${editBtns}</div>
+    </div>
+    ${props.length ? `<div class="wiki-section"><div class="wiki-section-label">기본 데이터</div><div class="wiki-props">${props.map(p=>`<div class="wiki-prop"><div class="wiki-prop-label">${p.label}</div><div class="wiki-prop-value">${p.value}</div></div>`).join('')}</div></div>` : ''}
+    ${w.overview ? `<div class="wiki-section"><div class="wiki-section-label">개요</div><div class="wiki-section-content">${w.overview.replace(/\n/g,'<br>')}</div></div>` : ''}
+    ${w.properties ? `<div class="wiki-section"><div class="wiki-section-label">특성 및 감별</div><div class="wiki-section-content">${w.properties.replace(/\n/g,'<br>')}</div></div>` : ''}
+    ${w.market ? `<div class="wiki-section"><div class="wiki-section-label">시장 가치 / 수집 메모</div><div class="wiki-section-content">${w.market.replace(/\n/g,'<br>')}</div></div>` : ''}`;
+  area.scrollTop = 0;
+}
+
+function openWikiModal() {
+  if (!isAdmin) return;
+  editingWikiId = null;
+  document.getElementById('wiki-modal-title').textContent = '위키 항목 작성';
+  ['wiki-name','wiki-formula','wiki-hardness','wiki-ri','wiki-origin','wiki-color','wiki-overview','wiki-properties','wiki-market','wiki-image'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('wiki-category').value = '';
+  openModal('wiki-modal');
+}
+
+function editWikiEntry(id) {
+  if (!isAdmin) return;
+  const w = wikis.find(x => x.id === id); if (!w) return;
+  editingWikiId = id;
+  document.getElementById('wiki-modal-title').textContent = '위키 편집';
+  ['name','category','formula','hardness','ri','origin','color','overview','properties','market','image'].forEach(k => {
+    const el = document.getElementById('wiki-' + k); if (el) el.value = w[k] || '';
+  });
+  openModal('wiki-modal');
+}
+
+async function saveWikiEntry() {
+  if (!isAdmin) return;
+  const name = document.getElementById('wiki-name').value.trim();
+  if (!name) { alert('보석명을 입력하세요.'); return; }
+  const data = {
+    name, category: document.getElementById('wiki-category').value,
+    formula: document.getElementById('wiki-formula').value.trim(),
+    hardness: document.getElementById('wiki-hardness').value.trim(),
+    ri: document.getElementById('wiki-ri').value.trim(),
+    origin: document.getElementById('wiki-origin').value.trim(),
+    color: document.getElementById('wiki-color').value.trim(),
+    overview: document.getElementById('wiki-overview').value.trim(),
+    properties: document.getElementById('wiki-properties').value.trim(),
+    market: document.getElementById('wiki-market').value.trim(),
+    image: document.getElementById('wiki-image').value.trim(),
+  };
+  if (editingWikiId) {
+    await sb.from('wikis').update(data).eq('id', editingWikiId);
+  } else {
+    await sb.from('wikis').insert(data);
+  }
+  closeModal('wiki-modal');
+  notify(editingWikiId ? '수정되었습니다' : '항목이 추가되었습니다');
+  await loadWikis();
+  if (editingWikiId) showWikiEntry(editingWikiId);
+  else goToShowcase();
+}
+
+async function deleteWikiEntry(id) {
+  if (!isAdmin) return;
+  if (!confirm('이 위키 항목을 삭제할까요?')) return;
+  await sb.from('wikis').delete().eq('id', id);
+  notify('삭제되었습니다');
+  await loadWikis();
+  goToShowcase();
+}
+
+// ── MODAL ──
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
+});
+
+// ── THEME ──
+function toggleTheme() {
+  const isLight = document.documentElement.classList.toggle('light');
+  document.getElementById('theme-toggle').textContent = isLight ? '☀' : '☽';
+  localStorage.setItem('gemvault_theme', isLight ? 'light' : 'dark');
+}
+function initTheme() {
+  if (localStorage.getItem('gemvault_theme') === 'light') {
+    document.documentElement.classList.add('light');
+    const btn = document.getElementById('theme-toggle');
+    if (btn) btn.textContent = '☀';
+  }
+}
+
+// ── NOTIFY ──
+function notify(msg) {
+  const el = document.getElementById('notif');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2200);
+}
+</script>
+</body>
+</html>
