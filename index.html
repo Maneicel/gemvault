@@ -226,6 +226,37 @@
   .notif { position: fixed; bottom: 2rem; right: 2rem; background: var(--surface); border: 0.5px solid var(--gold); color: var(--gold2); padding: 12px 20px; font-size: 12px; letter-spacing: 0.05em; z-index: 300; opacity: 0; transform: translateY(10px); transition: opacity 0.3s, transform 0.3s; pointer-events: none; }
   .notif.show { opacity: 1; transform: translateY(0); }
   .loading { display: flex; align-items: center; justify-content: center; padding: 4rem; color: var(--muted); font-size: 12px; letter-spacing: 0.1em; }
+  /* ── TIPS ── */
+  .tips-header { padding: 3rem 2.5rem 2rem; border-bottom: 0.5px solid var(--border); display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+  .tips-list { max-width: 780px; margin: 2rem auto; padding: 0 2rem 4rem; display: flex; flex-direction: column; gap: 1px; background: var(--border); border: 0.5px solid var(--border); }
+  .tip-card {
+    background: var(--bg2); display: flex; align-items: stretch;
+    cursor: pointer; transition: background 0.15s; position: relative;
+    gap: 0;
+  }
+  .tip-card:hover { background: var(--surface); }
+  .tip-card-body { flex: 1; padding: 1.2rem 1.4rem; min-width: 0; }
+  .tip-card-title { font-family: 'Cormorant Garamond', serif; font-size: 18px; font-weight: 400; color: var(--text); margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tip-card-content { font-size: 12px; color: var(--muted); line-height: 1.7; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 8px; }
+  .tip-card-meta { font-size: 10px; color: var(--muted); opacity: 0.6; letter-spacing: 0.06em; display: flex; gap: 1rem; align-items: center; }
+  .tip-card-img { width: 90px; flex-shrink: 0; background: var(--bg3); overflow: hidden; }
+  .tip-card-img img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.3s; }
+  .tip-card:hover .tip-card-img img { transform: scale(1.05); }
+  .tip-card-no-img { display: none; }
+  .tip-delete-btn { position: absolute; top: 10px; right: 10px; background: none; border: 0.5px solid transparent; color: var(--muted); font-size: 11px; padding: 3px 8px; cursor: pointer; opacity: 0; transition: opacity 0.15s, border-color 0.15s, color 0.15s; font-family: 'DM Mono', monospace; }
+  .tip-card:hover .tip-delete-btn { opacity: 1; }
+  .tip-delete-btn:hover { border-color: var(--danger); color: #e06060; }
+
+  /* Tip detail */
+  .tip-detail-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.82); z-index: 200; display: none; overflow-y: auto; }
+  .tip-detail-overlay.open { display: block; }
+  .tip-detail-inner { max-width: 680px; margin: 3rem auto; background: var(--bg2); border: 0.5px solid var(--border2); }
+  .tip-detail-header { padding: 1.5rem 2rem; border-bottom: 0.5px solid var(--border); display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+  .tip-detail-title { font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 300; line-height: 1.3; }
+  .tip-detail-meta { font-size: 10px; color: var(--muted); margin-top: 5px; letter-spacing: 0.06em; }
+  .tip-detail-img { width: 100%; max-height: 340px; object-fit: cover; display: block; border-bottom: 0.5px solid var(--border); }
+  .tip-detail-content { padding: 2rem; font-size: 14px; line-height: 2; color: var(--text); white-space: pre-wrap; }
+
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border2); }
@@ -257,8 +288,9 @@
   <nav>
     <a class="logo" href="#">Gem<span>Vault</span></a>
     <div class="nav-tabs">
-      <button class="nav-tab active" onclick="showPage('gallery', this)">Gallery</button>
+      <button class="nav-tab active" onclick="showPage('gallery', this)">컬렉션</button>
       <button class="nav-tab" onclick="showPage('wiki', this)">Wiki</button>
+      <button class="nav-tab" onclick="showPage('tips', this)">Tips</button>
     </div>
     <div class="nav-right">
       <span class="nav-user" id="nav-user-email"></span>
@@ -335,7 +367,27 @@
         </div>
       </div>
     </div>
+    <!-- TIPS -->
+    <div id="page-tips" class="page">
+      <div class="tips-header">
+        <div>
+          <div class="page-title">Tips</div>
+          <div class="page-subtitle">보석에 관한 작은 팁을 나눠보세요</div>
+        </div>
+        <button class="btn-primary" id="tips-write-btn" onclick="openTipModal()">+ 팁 쓰기</button>
+      </div>
+      <div class="tips-list" id="tips-list"></div>
+      <div class="empty-state" id="tips-empty" style="display:none;">
+        <div class="empty-state-icon">✦</div>
+        <p>아직 팁이 없습니다.<br>첫 번째 팁을 남겨보세요.</p>
+      </div>
+    </div>
   </main>
+</div>
+
+<!-- TIP DETAIL OVERLAY -->
+<div class="tip-detail-overlay" id="tip-detail-overlay" onclick="if(event.target===this)closeTipDetail()">
+  <div class="tip-detail-inner" id="tip-detail-inner"></div>
 </div>
 
 <!-- GEM MODAL -->
@@ -502,6 +554,35 @@
   </div>
 </div>
 
+<!-- TIP MODAL -->
+<div class="modal-overlay" id="tip-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">팁 작성</div>
+      <button class="modal-close" onclick="closeModal('tip-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">제목 *</label>
+        <input class="form-input" id="tip-title" type="text" placeholder="예: 선스톤 감별 포인트">
+      </div>
+      <div class="form-group">
+        <label class="form-label">내용</label>
+        <textarea class="form-textarea" id="tip-content" placeholder="팁 내용을 적어주세요..." style="min-height:140px;"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">사진 URL (Google Drive)</label>
+        <input class="form-input" id="tip-image" type="text" placeholder="https://drive.google.com/...">
+        <div class="media-help" style="margin-top:4px;">Google Drive에서 "링크 있는 모든 사용자" 공유 후 링크 붙여넣기</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-sm" onclick="closeModal('tip-modal')">취소</button>
+      <button class="btn-primary" onclick="saveTip()">올리기</button>
+    </div>
+  </div>
+</div>
+
 <!-- GEM DETAIL -->
 <div class="gem-detail-overlay" id="gem-detail-overlay" onclick="handleDetailOverlayClick(event)">
   <div class="gem-detail-inner" id="gem-detail-inner"></div>
@@ -545,6 +626,7 @@ async function enterWikiOnly() {
   document.querySelectorAll('.nav-tab')[1].classList.add('active');
   initTheme();
   await loadWikis();
+  await loadTips();
   goToShowcase();
 }
 
@@ -586,6 +668,7 @@ sb.auth.onAuthStateChange(async (event, session) => {
     initTheme();
     await loadGems();
     await loadWikis();
+    await loadTips();
     // 갤러리 탭으로 이동
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -620,6 +703,7 @@ sb.auth.onAuthStateChange(async (event, session) => {
     document.getElementById('page-wiki').classList.add('active');
     document.querySelectorAll('.nav-tab')[1].classList.add('active');
     await loadWikis();
+    await loadTips();
     goToShowcase();
   }
 });
@@ -632,6 +716,7 @@ function showPage(name, tab) {
   if (tab) tab.classList.add('active');
   if (name === 'gallery') renderGallery();
   if (name === 'wiki') goToShowcase();
+  if (name === 'tips') { loadTips(); }
 }
 
 // ── GALLERY ──
@@ -1083,6 +1168,100 @@ function notify(msg) {
   const el = document.getElementById('notif');
   el.textContent = msg; el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 2200);
+// ── TIPS ──
+let tips = [];
+
+async function loadTips() {
+  const { data } = await sb.from('tips').select('*').order('created_at', { ascending: false });
+  tips = data || [];
+  renderTips();
+}
+
+function renderTips() {
+  const list = document.getElementById('tips-list');
+  const empty = document.getElementById('tips-empty');
+  // 로그인 안 한 경우 팁 쓰기 버튼 숨김
+  const writeBtn = document.getElementById('tips-write-btn');
+  if (writeBtn) writeBtn.style.display = currentUser ? '' : 'none';
+
+  list.innerHTML = '';
+  if (!tips.length) { empty.style.display = 'block'; list.style.display = 'none'; return; }
+  empty.style.display = 'none'; list.style.display = 'flex';
+
+  tips.forEach(t => {
+    const authorId = t.user_email ? t.user_email.split('@')[0] : '익명';
+    const date = new Date(t.created_at).toLocaleDateString('ko-KR', { year:'numeric', month:'short', day:'numeric' });
+    const imgSrc = t.image_url ? driveUrlToImage(t.image_url) : null;
+    const card = document.createElement('div');
+    card.className = 'tip-card';
+    card.onclick = () => openTipDetail(t.id);
+    card.innerHTML = `
+      <div class="tip-card-body">
+        <div class="tip-card-title">${t.title}</div>
+        ${t.content ? `<div class="tip-card-content">${t.content}</div>` : ''}
+        <div class="tip-card-meta">
+          <span>${authorId}</span>
+          <span>${date}</span>
+        </div>
+      </div>
+      ${imgSrc ? `<div class="tip-card-img"><img src="${imgSrc}" alt="${t.title}" onerror="this.parentElement.style.display='none'"></div>` : ''}
+      ${isAdmin ? `<button class="tip-delete-btn" onclick="deleteTip('${t.id}', event)">삭제</button>` : ''}`;
+    list.appendChild(card);
+  });
+}
+
+function openTipDetail(id) {
+  const t = tips.find(x => x.id === id); if (!t) return;
+  const authorId = t.user_email ? t.user_email.split('@')[0] : '익명';
+  const date = new Date(t.created_at).toLocaleDateString('ko-KR', { year:'numeric', month:'short', day:'numeric' });
+  const imgSrc = t.image_url ? driveUrlToImage(t.image_url) : null;
+  document.getElementById('tip-detail-inner').innerHTML = `
+    ${imgSrc ? `<img class="tip-detail-img" src="${imgSrc}" alt="${t.title}" onerror="this.style.display='none'">` : ''}
+    <div class="tip-detail-header">
+      <div>
+        <div class="tip-detail-title">${t.title}</div>
+        <div class="tip-detail-meta">${authorId} · ${date}</div>
+      </div>
+      <button class="btn-sm" onclick="closeTipDetail()">✕ 닫기</button>
+    </div>
+    ${t.content ? `<div class="tip-detail-content">${t.content}</div>` : ''}`;
+  document.getElementById('tip-detail-overlay').classList.add('open');
+}
+
+function closeTipDetail() { document.getElementById('tip-detail-overlay').classList.remove('open'); }
+
+function openTipModal() {
+  if (!currentUser) { notify('로그인이 필요합니다'); return; }
+  document.getElementById('tip-title').value = '';
+  document.getElementById('tip-content').value = '';
+  document.getElementById('tip-image').value = '';
+  openModal('tip-modal');
+}
+
+async function saveTip() {
+  if (!currentUser) return;
+  const title = document.getElementById('tip-title').value.trim();
+  if (!title) { alert('제목을 입력하세요.'); return; }
+  const { error } = await sb.from('tips').insert({
+    user_id: currentUser.id,
+    user_email: currentUser.email,
+    title,
+    content: document.getElementById('tip-content').value.trim(),
+    image_url: document.getElementById('tip-image').value.trim(),
+  });
+  if (error) { notify('오류가 발생했습니다'); return; }
+  closeModal('tip-modal');
+  notify('팁이 올라갔습니다');
+  await loadTips();
+}
+
+async function deleteTip(id, e) {
+  e.stopPropagation();
+  if (!isAdmin) return;
+  if (!confirm('이 팁을 삭제할까요?')) return;
+  await sb.from('tips').delete().eq('id', id);
+  notify('삭제되었습니다');
+  await loadTips();
 }
 </script>
 </body>
